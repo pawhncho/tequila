@@ -25,7 +25,11 @@ from .serializers import (
 # Create your views here.
 def analysis(reports):
 	from transformers import pipeline
-	sentiment_analysis_model = pipeline('sentiment-analysis', device=-1)
+	sentiment_analysis_model = pipeline(
+									'sentiment-analysis',
+									model='distilbert-base-uncased-finetuned-sst-2-english',
+									local_files_only=True,
+									device=-1)
 	positive = 0
 	negative = 0
 	for report in reports:
