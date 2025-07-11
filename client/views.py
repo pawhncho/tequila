@@ -21,12 +21,14 @@ from .serializers import (
 	PredictionLikeSerializer,
 	FeedbackSerializer
 )
+from transformers import pipeline
+
+model_name = 'distilbert-base-uncased-finetuned-sst-2-english'
+
+sentiment_analysis_model = pipeline('sentiment-analysis', model=model_name, device=-1)
 
 # Create your views here.
 def analysis(reports):
-	from transformers import pipeline
-	model_name = 'distilbert-base-uncased-finetuned-sst-2-english'
-	sentiment_analysis_model = pipeline('sentiment-analysis', model=model_name, device=-1)
 	positive = 0
 	negative = 0
 	for report in reports:
@@ -71,6 +73,8 @@ def register(request):
 	username = request.data.get('username')
 	email = request.data.get('email')
 	password = request.data.get('password')
+	if not username or not email or not password:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	if User.objects.filter(username=username).exists():
 		return Response({ 'data': 'Username already exists', 'status': False })
 	if User.objects.filter(email=email).exists():
@@ -83,6 +87,8 @@ def register(request):
 @api_view(['POST'])
 def forgot_password(request):
 	email = request.data.get('email')
+	if not email:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	if not User.objects.filter(email=email).exists():
 		return Response({ 'data': 'Invalid email address', 'status': False })
 	user = User.objects.filter(email=email).first()
@@ -97,13 +103,15 @@ def forgot_password(request):
 
 @api_view(['POST'])
 def reset_password(request, token):
-	new_password = request.data.get('new-password')
 	try:
 		token = signing.loads(token, max_age=3600)
 	except:
 		return Response({ 'data': 'Invalid token', 'status': False })
 	if not User.objects.filter(id=token['identification']).exists():
 		return Response({ 'data': 'User not found', 'status': False })
+	new_password = request.data.get('new-password')
+	if not new_password:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	user = User.objects.filter(id=token['identification']).first()
 	user.set_password(new_password)
 	user.save()
@@ -237,14 +245,24 @@ def submit_report(request):
 		return Response({ 'data': 'Invalid token', 'status': False })
 	token = Token.objects.filter(key=token).first()
 	user = token.user
+	location = request.data.get('location')
+	latitude = request.data.get('latitude')
+	longitude = request.data.get('longitude')
+	report_type = request.data.get('report-type')
+	description = request.data.get('description')
+	sensor = request.data.get('sensor-data')
+	rating = request.data.get('rating')
+	if not location or not latitude or not longitude or not report_type or not description or not sensor or not rating:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	report = Report.objects.create(
-		location=request.data.get('location'),
-		latitude=request.data.get('latitude'),
-		longitude=request.data.get('longitude'),
-		report_type=request.data.get('report-type'),
-		description=request.data.get('description'),
-		sensor_data=request.data.get('sensor-data'),
-		rating=request.data.get('rating'),
+		location=location,
+		latitude=latitude,
+		longitude=longitude,
+		report_type=report_type,
+		description=description,
+		sensor_data=sensor,
+		status='active',
+		rating=rating,
 		user=user
 	)
 	now = timezone.now()
@@ -310,12 +328,19 @@ def submit_prediction(request):
 	token = Token.objects.filter(key=token).first()
 	user = token.user
 	report = Report.objects.filter(id=report).first()
+	predicted_event = request.data.get('predicted-event')
+	generated_text = request.data.get('generated-text')
+	confidence_score = request.data.get('confidence-score')
+	valid_until = request.data.get('valid-until')
+	ai_model_version = request.data.get('ai-model-version')
+	if not predicted_event or not generated_text or not confidence_score or not valid_until or not ai_model_version:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	prediction = Prediction.objects.create(
-		predicted_event=request.data.get('predicted-event'),
-		generated_text=request.data.get('generated-text'),
-		confidence_score=request.data.get('confidence-score'),
-		valid_until=request.data.get('valid-until'),
-		ai_model_version=request.data.get('ai-model-version'),
+		predicted_event=predicted_event,
+		generated_text=generated_text,
+		confidence_score=confidence_score,
+		valid_until=valid_until,
+		ai_model_version=ai_model_version,
 		user=user,
 		report=report
 	)
@@ -508,10 +533,15 @@ def submit_report_feedback(request):
 	token = Token.objects.filter(key=token).first()
 	user = token.user
 	report = Report.objects.filter(id=report).first()
+	rating = request.data.get('rating')
+	comment = request.data.get('comment')
+	is_accurate = request.data.get('is-accurate')
+	if not rating or not comment or not is_accurate:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	feedback = Feedback.objects.create(
-		rating=request.data.get('rating'),
-		comment=request.data.get('comment'),
-		is_accurate=request.data.get('is-accurate'),
+		rating=rating,
+		comment=comment,
+		is_accurate=is_accurate,
 		user=user,
 		report=report
 	)
@@ -555,10 +585,15 @@ def submit_prediction_feedback(request):
 	token = Token.objects.filter(key=token).first()
 	user = token.user
 	prediction = Prediction.objects.filter(id=prediction).first()
+	rating = request.data.get('rating')
+	comment = request.data.get('comment')
+	is_accurate = request.data.get('is-accurate')
+	if not rating or not comment or not is_accurate:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	feedback = Feedback.objects.create(
-		rating=request.data.get('rating'),
-		comment=request.data.get('comment'),
-		is_accurate=request.data.get('is-accurate'),
+		rating=rating,
+		comment=comment,
+		is_accurate=is_accurate,
 		user=user,
 		prediction=prediction
 	)
@@ -602,8 +637,11 @@ def submit_reply(request):
 	token = Token.objects.filter(key=token).first()
 	user = token.user
 	feedback = Feedback.objects.filter(id=feedback).first()
+	comment = request.data.get('comment')
+	if not comment:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	reply = Feedback.objects.create(
-		comment=request.data.get('comment'),
+		comment=comment,
 		parent_feedback=feedback,
 		user=user
 	)
@@ -634,12 +672,14 @@ def replies(request):
 	replies_serializer = FeedbackSerializer(replies, many=True)
 	return Response({ 'data': replies_serializer.data, 'status': True })
 
-@api_view(['GET'])
+@api_view(['POST'])
 def explore(request):
 	token = request.GET.get('token')
-	location = request.GET.get('location')
-	if not token or not location:
+	if not token:
 		return Response({ 'data': 'Invalid parameters', 'status': False })
+	location = request.data.get('location')
+	if not location:
+		return Response({ 'data': 'Fields are required', 'status': False })
 	recent_reports = Report.objects.filter(
 		location__icontains=location,
 		timestamp__gte=timezone.now() - timedelta(hours=24),
