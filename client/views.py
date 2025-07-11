@@ -680,9 +680,10 @@ def explore(request):
 	location = request.data.get('location')
 	if not location:
 		return Response({ 'data': 'Fields are required', 'status': False })
+	last_24_hours = timezone.now() - timedelta(hours=24)
 	recent_reports = Report.objects.filter(
 		location__icontains=location,
-		timestamp__gte=timezone.now() - timedelta(hours=24),
+		timestamp__gte=last_24_hours,
 		status='active'
 	)
 	if not recent_reports.exists():
